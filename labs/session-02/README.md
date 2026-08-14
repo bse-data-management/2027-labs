@@ -1,7 +1,7 @@
 # Session 2 lab — Data storage systems
 
 One month of NYC yellow taxi trips (the first million rows), stored four ways,
-plus PostgreSQL and Redis in Docker.
+plus PostgreSQL in Docker.
 
 You will not write any SQL. Every query is already written — you run cells, read
 numbers, and fill in the table at the top of the notebook.
@@ -16,7 +16,8 @@ uv run python scripts/download_nyc_taxi.py
 docker compose up -d
 ```
 
-Then open **<http://localhost:8888>** and click into `session-02/lab.ipynb`.
+Then open **<http://localhost:8888/lab?token=labs>** and click into
+`session-02/lab.ipynb`.
 
 The notebook runs inside Docker, next to the databases — there is no kernel to
 choose and no connection to configure. What you type is saved to your own
@@ -29,9 +30,13 @@ Tight on disk or RAM? Prefix it with `ROW_CAP=250000`.
 ### Prefer VS Code to the browser?
 
 Open `labs/session-02/lab.ipynb`, then **Select Kernel** (top right) &rarr;
-*Existing Jupyter Server…* &rarr; enter `http://localhost:8888` &rarr; pick
-*Python 3*. Leave the password prompt empty. The code still runs in the
-container; VS Code is only the editor.
+*Existing Jupyter Server…* &rarr; paste `http://localhost:8888/?token=labs`
+&rarr; pick *Python 3*. The code still runs in the container; VS Code is only the
+editor.
+
+The token matters: paste the URL with `?token=labs` and use `localhost`, not the
+`0.0.0.0` address Jupyter prints in the log. Without the token VS Code fails with
+`'_xsrf' argument missing from POST`.
 
 For import autocompletion as well, install the **Dev Containers** extension and
 run *Dev Containers: Attach to Running Container…* &rarr; `2027-labs-jupyter-1`,
@@ -39,16 +44,16 @@ then open `/app/labs/session-02/lab.ipynb` there.
 
 When you are done: `docker compose down`.
 
-## The three parts
+## The parts
 
 | Part | What | Where |
 |---|---|---|
 | A | Four files, three questions: bytes each one forces you to read, and how long | `lab.ipynb` |
 | B | The same two questions in PostgreSQL, without and with an index | `lab.ipynb` |
-| C | Two people write to one row and €40 disappears | [`PART_C.md`](PART_C.md) |
+| C | *Optional.* Two people write to one row and €40 disappears | [`PART_C.md`](PART_C.md) |
 
-Part C needs two terminals side by side. There is an optional Redis stretch at
-the end of the notebook.
+Part C is extra: two terminals side by side, for anyone who finishes early or is
+curious afterwards. Nothing later in the course depends on it.
 
 ## Roughly what to expect
 
@@ -59,7 +64,7 @@ files, so they should match yours almost exactly; the times will not.
 |---------|--------|--------|--------|--------|
 | CSV | 112 MB | 112 MB | 112 MB | 112 MB |
 | JSON | 445 MB | 445 MB | 445 MB | 445 MB |
-| Parquet | 27 MB | 27 MB | 6.6 MB | 2.7 MB |
+| Parquet | 35 MB | 34.5 MB | 9.8 MB | 9.7 MB |
 | SQLite | 122 MB | 122 MB | 122 MB | 122 MB |
 
 In part B the single-trip lookup goes from ~12 ms to ~0.01 ms once the index
@@ -87,7 +92,3 @@ delete `data/nyc-taxi/` and run it again.
 **`No data found. Run scripts/download_nyc_taxi.py first`** — check that
 `data/nyc-taxi/trips.parquet` exists. The notebook reads it through the
 `./data` folder mounted into the container.
-
-**Part C: my second terminal did not wait** — both terminals must be in the same
-database, and terminal A must still be inside its transaction. Reset the balance
-to 120 and start round 2 again.

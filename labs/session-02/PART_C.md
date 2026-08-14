@@ -1,20 +1,20 @@
-# Part C — The lost payout (8 min)
+# Part C (optional) — The lost payout
+
+Nothing here is examinable and nothing later in the course depends on it. Do it
+if you finish Parts A and B early, or at home afterwards. It takes about ten
+minutes and it is the one thing in this lab you have to *watch* rather than read.
 
 Two people write to the same row at the same time. No error is raised, and €40
-disappears. You will make it happen, then stop it from happening.
+disappears.
 
-You need **two terminals side by side**, both connected to the same database.
-In each one, from the repository root, run:
+You need **two terminals side by side**. In each one, from the repository root:
 
 ```bash
 docker compose exec postgres psql -U labs -d labs
 ```
 
-Call the left terminal **A** and the right terminal **B**. Keep them both open
-and visible — the whole lesson is in what terminal B does at one particular
-moment.
-
----
+Call the left one **A** and the right one **B**. Keep both visible — the whole
+point is what terminal B does at one particular moment.
 
 ## Setup (terminal A, once)
 
@@ -25,55 +25,46 @@ CREATE TABLE driver_balances (
     balance   numeric(10,2) NOT NULL
 );
 INSERT INTO driver_balances VALUES (4471, 120.00);
-SELECT * FROM driver_balances;
 ```
 
-Driver 4471 has a balance of **€120**. Two payouts are about to arrive:
-**payout A of €40** and **payout B of €25**. The driver is owed
-120 + 40 + 25 = **€185**.
+Driver 4471 has **€120**. Two payouts are about to arrive: **€40** and **€25**.
+The driver is owed 120 + 40 + 25 = **€185**.
 
-Notice that we type the *new total* in each `UPDATE` below, rather than writing
-`balance = balance + 40`. That is not a trick to make the lab fail — it is what
-almost every application does: read the balance, add the payout in Python, write
-the result back. The addition happens outside the database.
-
----
+Notice that each `UPDATE` below writes the *new total* rather than
+`balance = balance + 40`. That is not a trick to make this fail — it is what most
+applications do: read the balance, add the payout in Python, write the result
+back. The arithmetic happens outside the database.
 
 ## Round 1 — no transactions
 
-Run these **in this exact order**, alternating terminals. Wait for each
-statement to finish before moving to the next.
+Run these in this exact order, alternating terminals.
 
-**Step 1 — A reads the balance**
-
-```sql
-SELECT balance FROM driver_balances WHERE driver_id = 4471;
-```
-
-A sees `120.00`. Payout A is €40, so A works out the new total: 160.
-
-**Step 2 — B reads the balance**
+**1. A reads.** A sees `120.00`, so payout A's new total is 160.
 
 ```sql
 SELECT balance FROM driver_balances WHERE driver_id = 4471;
 ```
 
-B also sees `120.00` — A has not written anything yet. Payout B is €25, so B
-works out the new total: 145.
+**2. B reads.** B also sees `120.00` — A has not written yet. Payout B's new
+total is 145.
 
-**Step 3 — A writes**
+```sql
+SELECT balance FROM driver_balances WHERE driver_id = 4471;
+```
+
+**3. A writes.**
 
 ```sql
 UPDATE driver_balances SET balance = 160.00 WHERE driver_id = 4471;
 ```
 
-**Step 4 — B writes**
+**4. B writes.**
 
 ```sql
 UPDATE driver_balances SET balance = 145.00 WHERE driver_id = 4471;
 ```
 
-**Step 5 — either terminal, check the result**
+**5. Either terminal — look at the result.**
 
 ```sql
 SELECT balance FROM driver_balances WHERE driver_id = 4471;
@@ -86,10 +77,8 @@ SELECT balance FROM driver_balances WHERE driver_id = 4471;
 ```
 
 The driver is owed **€185** and the database says **€145**. Payout A's €40 is
-gone. Both statements said `UPDATE 1`. No error, no warning, no log entry — the
-only evidence is a driver who was underpaid.
-
----
+gone. Both statements reported `UPDATE 1`. No error, no warning — the only
+evidence is an underpaid driver.
 
 ## Round 2 — transactions, with a lock
 
@@ -99,53 +88,42 @@ Reset the balance (terminal A):
 UPDATE driver_balances SET balance = 120.00 WHERE driver_id = 4471;
 ```
 
-Now the same four steps, but each session wraps its read-and-write in a
-transaction and asks for the row with `FOR UPDATE`, which means: *give me this
-row and let nobody else touch it until I am done.*
+Same four steps, but each session now wraps its read and write in a transaction
+and asks for the row `FOR UPDATE`, meaning: *give me this row, and let nobody
+else touch it until I am done.*
 
-**Step 1 — A opens a transaction and takes the row**
-
-```sql
-BEGIN;
-SELECT balance FROM driver_balances WHERE driver_id = 4471 FOR UPDATE;
-```
-
-A sees `120.00`. A now holds a lock on that row.
-
-**Step 2 — B tries to do the same**
+**1. A takes the row.** A sees `120.00` and now holds a lock on it.
 
 ```sql
 BEGIN;
 SELECT balance FROM driver_balances WHERE driver_id = 4471 FOR UPDATE;
 ```
 
-**Watch terminal B.** Nothing happens. No result, no prompt, no error — it just
-sits there. B is waiting for A to finish. **This pause is the point of the
-exercise.** Leave it hanging and look at it for a moment.
+**2. B tries the same.**
 
-**Step 3 — A writes and commits**
+```sql
+BEGIN;
+SELECT balance FROM driver_balances WHERE driver_id = 4471 FOR UPDATE;
+```
+
+**Watch terminal B.** No result, no prompt, no error — it just sits there,
+waiting for A. **This pause is the exercise.** Leave it hanging and look at it.
+
+**3. A writes and commits.**
 
 ```sql
 UPDATE driver_balances SET balance = 160.00 WHERE driver_id = 4471;
 COMMIT;
 ```
 
-Now look at terminal B again: the `SELECT` has returned, and it says `160.00` —
-not the stale `120.00` it would have read a moment ago.
+Now look at B again: its `SELECT` has returned, and it says `160.00` — not the
+stale `120.00` it would have read a moment ago.
 
-**Step 4 — B writes the correct total and commits**
-
-B adds its €25 to what it actually read: 160 + 25 = 185.
+**4. B adds its €25 to what it actually read, and commits.**
 
 ```sql
 UPDATE driver_balances SET balance = 185.00 WHERE driver_id = 4471;
 COMMIT;
-```
-
-**Step 5 — check**
-
-```sql
-SELECT balance FROM driver_balances WHERE driver_id = 4471;
 ```
 
 ```
@@ -154,21 +132,21 @@ SELECT balance FROM driver_balances WHERE driver_id = 4471;
   185.00
 ```
 
-Nothing was lost. The cost was that terminal B had to wait.
+Nothing was lost. The cost was that B had to wait.
 
----
+## Worth writing down
 
-## What to write down
+The two final balances, `145.00` and `185.00`, and one sentence on what would
+have happened in round 1 if the payouts had arrived a minute apart instead of a
+second apart.
 
-1. The two final balances: `145.00` and `185.00`.
-2. Roughly how long terminal B sat there waiting in round 2 — that waiting is
-   the price of correctness, and it is why the next sessions care so much about
-   how long a transaction stays open.
-3. One sentence: what would have happened in round 1 if the two payouts had
-   arrived a minute apart instead of a second apart?
+> A single statement — `UPDATE driver_balances SET balance = balance + 40 WHERE
+> driver_id = 4471` — is safe on its own, because the database does the arithmetic
+> while holding the row. Applications rarely have that luxury: the amount usually
+> depends on a rule, a rate, or a second table read in application code. That is
+> why locks and transactions exist.
 
-> **Aside.** A single statement — `UPDATE driver_balances SET balance = balance +
-> 40 WHERE driver_id = 4471` — is safe on its own, because the database does the
-> arithmetic while holding the row. Real applications rarely have that luxury:
-> the amount usually depends on a rule, a rate, or a second table read in
-> application code. That is why locks and transactions exist.
+**If B did not wait:** both terminals must be in the same database, and A must
+still be inside its transaction — if you committed A before B ran its
+`SELECT … FOR UPDATE`, there is no lock left to wait for. Reset to 120 and start
+round 2 again.

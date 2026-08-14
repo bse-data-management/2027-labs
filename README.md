@@ -21,6 +21,17 @@ extensions, then clone this repository.
 
 Each lab starts from its own README under `labs/`.
 
+## Notebooks
+
+`docker compose up -d` serves JupyterLab from the lab environment. Two ways in:
+
+- **Browser** — <http://localhost:8888/lab?token=labs>
+- **VS Code** — open the notebook, then **Select Kernel** &rarr; *Existing Jupyter
+  Server…* &rarr; `http://localhost:8888/?token=labs`
+
+Either way the code runs in the container, and what you type is saved to your own
+`labs/` folder.
+
 ## Checks
 
 From the repository root:

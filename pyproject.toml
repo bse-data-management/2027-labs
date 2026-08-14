@@ -8,7 +8,6 @@ dependencies = [
     "duckdb>=1.1",
     "pyarrow>=17.0",
     "psycopg[binary]>=3.2",
-    "redis>=5.0",
     "jupyterlab>=4.2",
     "ipykernel>=6.29",
 ]

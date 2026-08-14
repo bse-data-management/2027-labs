@@ -3,6 +3,7 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+.vscode/
 
 # No container needs the downloaded datasets; the fixtures are tiny.
 data/*

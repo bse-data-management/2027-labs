@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .ipynb_checkpoints/
+.vscode/
 
 # Datasets are downloaded, not committed. Only the small fixtures in data/test
 # are tracked, so anything added to data/ later is ignored by default.

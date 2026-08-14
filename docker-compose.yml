@@ -1,7 +1,7 @@
 services:
   # JupyterLab in the same image the labs are built from. The notebooks run next
-  # to the databases, so they reach them as `postgres` and `redis` and no
-  # database port needs publishing to your laptop.
+  # to the database, so they reach it as `postgres` and no database port needs
+  # publishing to your laptop.
   jupyter:
     build: .
     image: labs
@@ -13,7 +13,9 @@ services:
       - --ip=0.0.0.0
       - --no-browser
       - --allow-root
-      - --IdentityProvider.token=
+      # A fixed token, so the URL never changes and VS Code can connect too.
+      # Without one, Jupyter blocks VS Code's POSTs with an _xsrf error.
+      - --IdentityProvider.token=labs
       - --ServerApp.root_dir=/app/labs
     ports:
       # Port 8888 already in use? See the session 2 README: JUPYTER_PORT=8889 ...
@@ -38,6 +40,3 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  redis:
-    image: redis:7

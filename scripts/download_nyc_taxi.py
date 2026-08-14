@@ -58,7 +58,12 @@ def main():
 
     trips = pd.read_parquet(RAW).head(ROWS)
     trips.insert(0, "trip_id", range(1, len(trips) + 1))  # the TLC data has no id
-    print(f"{len(trips):,} rows, {len(trips.columns)} columns")
+
+    # Shuffled on purpose: ids assigned in order would sit in order on disk, and a
+    # lookup by id would then be answerable from Parquet's chunk statistics alone.
+    # Real files are rarely sorted by the thing you happen to search for.
+    trips = trips.sample(frac=1, random_state=0)
+    print(f"{len(trips):,} rows, {len(trips.columns)} columns, shuffled")
 
     for name, write in missing.items():
         write(trips, DATA / name)
