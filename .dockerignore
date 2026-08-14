@@ -1,0 +1,9 @@
+.venv/
+.git/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# No container needs the downloaded datasets; the fixtures are tiny.
+data/*
+!data/test/

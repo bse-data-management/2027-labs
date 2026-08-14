@@ -1,0 +1,43 @@
+services:
+  # JupyterLab in the same image the labs are built from. The notebooks run next
+  # to the databases, so they reach them as `postgres` and `redis` and no
+  # database port needs publishing to your laptop.
+  jupyter:
+    build: .
+    image: labs
+    command:
+      - uv
+      - run
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --no-browser
+      - --allow-root
+      - --IdentityProvider.token=
+      - --ServerApp.root_dir=/app/labs
+    ports:
+      # Port 8888 already in use? See the session 2 README: JUPYTER_PORT=8889 ...
+      - "${JUPYTER_PORT:-8888}:8888"
+    volumes:
+      - ./labs:/app/labs
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: labs
+      POSTGRES_PASSWORD: labs
+      POSTGRES_DB: labs
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labs -d labs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7

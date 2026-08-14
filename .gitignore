@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Datasets are downloaded, not committed. Only the small fixtures in data/test
+# are tracked, so anything added to data/ later is ignored by default.
+data/*
+!data/test/
+
+# Per-machine port override (see labs/session-02/README.md).
+/.env
