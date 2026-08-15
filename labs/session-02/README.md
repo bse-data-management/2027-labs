@@ -69,26 +69,3 @@ files, so they should match yours almost exactly; the times will not.
 
 In part B the single-trip lookup goes from ~12 ms to ~0.01 ms once the index
 exists. The aggregate does not move.
-
-## Troubleshooting
-
-**<http://localhost:8888> does not open** — something else on your machine is
-already using that port (another Jupyter, most likely). Publish this one
-elsewhere, from the repository root:
-
-```bash
-echo "JUPYTER_PORT=8889" > .env
-docker compose up -d
-```
-
-Then use <http://localhost:8889>.
-
-**`Cannot connect to the Docker daemon`** — Docker Desktop is not running.
-
-**The download stopped halfway** — re-run it. A partial download is left as a
-`.part` file and never mistaken for a finished one. To start over completely,
-delete `data/nyc-taxi/` and run it again.
-
-**`No data found. Run scripts/download_nyc_taxi.py first`** — check that
-`data/nyc-taxi/trips.parquet` exists. The notebook reads it through the
-`./data` folder mounted into the container.
