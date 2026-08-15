@@ -5,6 +5,7 @@ description = "Lab code for Data Management (23D021), Barcelona School of Econom
 requires-python = ">=3.12"
 dependencies = [
     "pandas>=2.2",
+    "numpy>=2.0",
     "duckdb>=1.1",
     "pyarrow>=17.0",
     "psycopg[binary]>=3.2",

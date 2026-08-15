@@ -29,6 +29,24 @@ services:
         condition: service_healthy
 
 
+  # A browser for the database: the six tables, their columns and their
+  # constraints, without typing SQL. The connection is preconfigured.
+  pgadmin:
+    image: dpage/pgadmin4:8
+    environment:
+      PGADMIN_DEFAULT_EMAIL: labs@bse.eu
+      PGADMIN_DEFAULT_PASSWORD: labs
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - ./docker/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
   postgres:
     image: postgres:16
     environment:
