@@ -13,3 +13,6 @@ data/*
 
 # Per-machine port override (see labs/session-02/README.md).
 /.env
+
+# Lab solutions live in the private solutions repository, not here.
+labs/*/SOLUTIONS.md

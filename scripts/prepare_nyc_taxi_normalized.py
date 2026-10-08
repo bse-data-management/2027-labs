@@ -1,4 +1,4 @@
-"""Normalize the NYC taxi trips into the six-table schema used in session 3.
+"""Normalize the NYC taxi trips into the six-table schema used in sessions 3 and 4.
 
     uv run python scripts/prepare_nyc_taxi_normalized.py
 
@@ -6,9 +6,13 @@ The TLC files hold trips and nothing else: no trip id, no drivers, no riders, no
 payments. Those are generated here, consistently enough that every foreign key in
 sql/schema.sql holds on the first load. Zones come from the TLC lookup table.
 
-Writes CSV files to data/nyc-taxi-normalized/, and skips whatever is already
-there. Delete
-the folder to start again. Set ROW_CAP for fewer trips.
+Session 4 adds two things the session 3 data never needed: drivers hired at the end
+of the month who have not driven yet, and payments_split.csv, in which some riders
+split a fare across several cards. Everything session 3 loads is unchanged apart
+from those new drivers.
+
+Writes CSV files to data/nyc-taxi-normalized/, and skips the work if they are all
+there already. Delete the folder to start again. Set ROW_CAP for fewer trips.
 """
 
 import os
@@ -32,6 +36,8 @@ ROWS = int(os.environ.get("ROW_CAP", 1_000_000))
 DRIVERS = 600
 RIDERS = 20_000
 TIP_MISSING = 0.05  # share of trips whose tip was never recorded — see README
+NEW_DRIVERS = 12  # hired in the last days of the month, so no trips yet
+SPLIT_SHARE = 0.04  # share of card payments a rider split across several cards
 
 # The TLC payment_type codes, spelled out.
 METHODS = {
@@ -193,9 +199,95 @@ def build_trips(
     return trips, payments
 
 
+def build_new_drivers(
+    rng: np.random.Generator, zone_ids: np.ndarray
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Drivers hired in the last days of the month. They exist, and drove nothing.
+
+    Session 4 needs them: a question about every driver has to include these, and
+    an inner join from drivers to trips quietly leaves them out.
+    """
+    ids = np.arange(DRIVERS + 1, DRIVERS + NEW_DRIVERS + 1)
+    drivers = pd.DataFrame(
+        {
+            "driver_id": ids,
+            "full_name": [
+                f"{first} {last}"
+                for first, last in zip(
+                    rng.choice(FIRST_NAMES, NEW_DRIVERS),
+                    rng.choice(LAST_NAMES, NEW_DRIVERS),
+                    strict=True,
+                )
+            ],
+            "licence_no": [f"NYC-{100000 + i - 1}" for i in ids],
+            "hired_on": (
+                pd.Timestamp(f"{MONTH}-20")
+                + pd.to_timedelta(rng.integers(0, 12, NEW_DRIVERS), unit="D")
+            ).date,
+            "home_zone_id": rng.choice(zone_ids, NEW_DRIVERS),
+        }
+    )
+    balances = pd.DataFrame(
+        {
+            "driver_id": ids,
+            "balance": 0.0,
+            "updated_at": pd.Timestamp(f"{MONTH}-31 23:59:00-05:00"),
+        }
+    )
+    return drivers, balances
+
+
+def split_payments(rng: np.random.Generator, payments: pd.DataFrame) -> pd.DataFrame:
+    """The same payments, except that some card payments arrive in two or three parts.
+
+    The parts of one payment add up to the original amount, to the cent. The first
+    part keeps the original payment id; the others are numbered after the last one.
+    Every trip still has at least one payment, and still the same total paid.
+    """
+    eligible = (payments["method"] == "credit card") & (payments["amount"] >= 10)
+    chosen = eligible & (rng.random(len(payments)) < SPLIT_SHARE)
+    split = payments.loc[chosen]
+
+    parts = np.where(rng.random(len(split)) < 0.75, 2, 3)
+    cents = (split["amount"] * 100).round().astype(np.int64).to_numpy()
+
+    rows = []
+    next_id = int(payments["payment_id"].to_numpy().max()) + 1
+    for (_, payment), n, total in zip(split.iterrows(), parts, cents, strict=True):
+        # n - 1 distinct cut points, so every part is at least a dollar and the
+        # parts still add up to the total.
+        cuts = np.sort(rng.choice(np.arange(100, total - 99), n - 1, replace=False))
+        amounts = np.diff(np.concatenate([[0], cuts, [total]])) / 100
+        for k, amount in enumerate(amounts):
+            if k == 0:
+                payment_id = payment["payment_id"]
+            else:
+                payment_id, next_id = next_id, next_id + 1
+            rows.append(
+                {
+                    "payment_id": payment_id,
+                    "trip_id": payment["trip_id"],
+                    "method": payment["method"],
+                    "amount": amount,
+                    "paid_at": payment["paid_at"] + pd.Timedelta(seconds=20 * k),
+                }
+            )
+
+    result = pd.concat([payments.loc[~chosen], pd.DataFrame(rows)])
+    return result.sort_values("payment_id").reset_index(drop=True)
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    tables = ["zones", "drivers", "driver_balances", "riders", "trips", "payments"]
+    tables = [
+        "zones",
+        "drivers",
+        "driver_balances",
+        "riders",
+        "trips",
+        "payments",
+        "payments_split",
+    ]
     if all((OUT / f"{name}.csv").exists() for name in tables):
         print(f"already prepared, in {OUT}")
         return
@@ -207,6 +299,14 @@ def main() -> None:
     drivers, balances, riders = build_people(rng, zones["zone_id"].to_numpy())
     trips, payments = build_trips(rng, zones["zone_id"].tolist())
 
+    # Session 4's additions draw from their own generator, so that everything
+    # above comes out exactly as it did for session 3.
+    rng = np.random.default_rng(4)
+    new_drivers, new_balances = build_new_drivers(rng, zones["zone_id"].to_numpy())
+    drivers = pd.concat([drivers, new_drivers], ignore_index=True)
+    balances = pd.concat([balances, new_balances], ignore_index=True)
+    payments_split = split_payments(rng, payments)
+
     written = {
         "zones": zones,
         "drivers": drivers,
@@ -214,6 +314,7 @@ def main() -> None:
         "riders": riders,
         "trips": trips,
         "payments": payments,
+        "payments_split": payments_split,
     }
     for name, frame in written.items():
         frame.to_csv(OUT / f"{name}.csv", index=False)
@@ -221,6 +322,8 @@ def main() -> None:
 
     missing = trips["tip"].isna().mean()
     print(f"\ntips missing: {missing:.1%} of trips")
+    split = payments_split["trip_id"].duplicated(keep=False)
+    print(f"trips paid in parts: {payments_split.loc[split, 'trip_id'].nunique():,}")
 
 
 main()
