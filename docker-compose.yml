@@ -58,3 +58,33 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+
+  # Session 6, part B: a document database, reached from the notebook as
+  # `mongodb`.
+  mongodb:
+    image: mongo:7
+
+
+  # Session 6, part C: a PostgreSQL leader and one asynchronous follower. Both
+  # keep their data in memory, so every start begins from a fresh, empty pair.
+  leader:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: labs
+      POSTGRES_PASSWORD: labs
+      POSTGRES_DB: labs
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./labs/session-06/replication/allow_follower.sh:/docker-entrypoint-initdb.d/allow_follower.sh:ro
+
+  follower:
+    image: postgres:16
+    entrypoint: ["sh", "/follow_leader.sh"]
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./labs/session-06/replication/follow_leader.sh:/follow_leader.sh:ro
+    depends_on:
+      - leader
