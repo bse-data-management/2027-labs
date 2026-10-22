@@ -20,6 +20,8 @@ services:
     ports:
       # Port 8888 already in use? See the session 2 README: JUPYTER_PORT=8889 ...
       - "${JUPYTER_PORT:-8888}:8888"
+      # Session 8: the API you run from a terminal in JupyterLab.
+      - "${API_PORT:-8000}:8000"
     volumes:
       - ./labs:/app/labs
       - ./data:/app/data
